@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Checksum — SHA-256, BLAKE2b, SHA-512, MD5</title>
+<script>
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem("checksum-theme"); } catch (e) {}
+    if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #12140f;
+    --panel: #1c1f18;
+    --line: #31362b;
+    --text: #ece7d8;
+    --muted: #a39c8b;
+    --accent: #d6a24a;
+    --accent-ink: #1a1408;
+    --ok: #8fbf7a;
+    --warn: #d6a24a;
+    --bad: #d27a6a;
+    --panel-2: #262a21; --well: #10130e; --line-soft: #2a2e25; --line-hover: #4a5040;
+    --faint: #8a8476; --hex-dim: #b7b1a2; --accent-soft: rgba(214, 162, 74, .14);
+    --ok-line: #3d5334; --bad-line: #6a3a34; --bad-soft: rgba(210, 122, 106, .08);
+    --glow: #2a2618; --drop-bg: #262214;
+    color-scheme: dark;
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    --sans: "Segoe UI", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+    --bg: #f5f2e9; --panel: #fffdf7; --panel-2: #efeadc; --well: #fbf9f3;
+    --line: #d8d0bb; --line-soft: #e5dfcf; --line-hover: #b9ae93;
+    --text: #24211a; --muted: #6b6454; --faint: #857e6d; --hex-dim: #4f4a3e;
+    --accent: #d6a24a; --accent-ink: #1a1408; --accent-soft: rgba(214, 162, 74, .18);
+    --ok: #3d7a2c; --ok-line: #a9c99b; --warn: #9a6a1a; --bad: #b4503f; --bad-line: #e2b9b0; --bad-soft: rgba(180, 80, 63, .07);
+    --glow: #f3e6c4; --drop-bg: #f7ecd2;
+    color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f2e9; --panel: #fffdf7; --panel-2: #efeadc; --well: #fbf9f3;
+    --line: #d8d0bb; --line-soft: #e5dfcf; --line-hover: #b9ae93;
+    --text: #24211a; --muted: #6b6454; --faint: #857e6d; --hex-dim: #4f4a3e;
+    --accent: #d6a24a; --accent-ink: #1a1408; --accent-soft: rgba(214, 162, 74, .18);
+    --ok: #3d7a2c; --ok-line: #a9c99b; --warn: #9a6a1a; --bad: #b4503f; --bad-line: #e2b9b0; --bad-soft: rgba(180, 80, 63, .07);
+    --glow: #f3e6c4; --drop-bg: #f7ecd2;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(1200px 500px at 10% -10%, var(--glow) 0%, transparent 50%), var(--bg);
+    color: var(--text);
+    font: 15px/1.45 var(--sans);
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 28px 18px 64px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 16px; }
+  .header-tools { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .header-tools .badge { margin-top: 0; }
+  @media (max-width: 520px) { header { flex-wrap: wrap; } .header-tools { order: -1; width: 100%; justify-content: space-between; } }
+  #theme-toggle { width: 38px; height: 38px; padding: 0; display: inline-grid; place-items: center; color: var(--muted); }
+  #theme-toggle:hover { color: var(--text); }
+  #theme-toggle svg { width: 18px; height: 18px; }
+  #theme-toggle .sun { display: none; }
+  :root[data-effective-theme="dark"] #theme-toggle .sun { display: block; }
+  :root[data-effective-theme="dark"] #theme-toggle .moon { display: none; }
+  button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:hover:not(:disabled) { border-color: var(--line-hover); }
+  kbd { font: 600 11px/1 var(--mono); padding: 2px 5px; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--panel-2); color: var(--muted); }
+  @media (hover: none) { .hide-touch { display: none; } }
+  .shortcuts { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--faint); font-size: 12.5px; }
+  @media (hover: none) { .shortcuts { display: none; } }
+  header h1 { font-size: 1.7rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+  header p { margin: 0; color: var(--muted); max-width: 62ch; }
+  .badge {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ok);
+    border: 1px solid var(--ok-line);
+    border-radius: 999px;
+    padding: 3px 10px;
+  }
+  .badge.fail { color: var(--bad); border-color: var(--bad-line); }
+  .badge.pending { color: var(--muted); border-color: var(--line); }
+  .pickrow {
+    margin-top: 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px;
+    border: 1.5px dashed var(--line);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color .15s, background-color .15s;
+  }
+  .pickrow:hover { border-color: var(--line-hover); }
+  .pickrow.over { border-color: var(--accent); background: var(--drop-bg); }
+  .pickrow .or strong { color: var(--text); font-weight: 600; }
+  .filebtn {
+    display: inline-block;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 14px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  .filebtn input { position: absolute; opacity: 0; width: 1px; height: 1px; overflow: hidden; }
+  .filebtn { position: relative; }
+  .filebtn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .or { color: var(--muted); }
+  .queue { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums; }
+  .expect-label { display: block; margin: 18px 0 6px; font-weight: 650; }
+  #expect {
+    width: 100%;
+    background: var(--well);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 10px 12px;
+    font: 13px var(--mono);
+  }
+  #expect { display: block; resize: vertical; min-height: 42px; line-height: 1.45; overflow: hidden; }
+  .expect-hint { margin: 6px 0 0; min-height: 1.2em; font-size: 13px; color: var(--muted); }
+  .expect-hint.ok { color: var(--ok); }
+  .expect-hint.warn { color: var(--warn); }
+  .case {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .card {
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+  }
+  .meta { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .name { font-weight: 650; word-break: break-all; }
+  .size { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .status { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+  .verdict { margin: 10px 0 0; min-height: 1.3em; font-weight: 700; }
+  .verdict.ok { color: var(--ok); }
+  .verdict.warn { color: var(--warn); }
+  .verdict { display: flex; align-items: center; gap: 8px; }
+  .verdict:empty { display: none; }
+  .verdict::before { font: 700 14px/1 var(--sans); width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; flex-shrink: 0; }
+  .verdict.ok::before { content: "✓"; background: var(--ok); color: var(--panel); }
+  .verdict.warn::before { content: "!"; background: var(--warn); color: var(--panel); }
+  .verdict.bad { color: var(--bad); }
+  .verdict.bad::before { content: "✕"; background: var(--bad); color: var(--panel); }
+  .verdict.neutral { color: var(--muted); font-weight: 600; }
+  .verdict.neutral::before { content: "–"; border: 1px solid var(--line); color: var(--muted); }
+  .card.is-bad { border-color: var(--bad-line); background: linear-gradient(var(--bad-soft), var(--bad-soft)), var(--panel); }
+  .card.is-ok { border-color: var(--ok-line); }
+  .lead { margin-top: 8px; }
+  .lead .alg { color: var(--text); font-weight: 700; letter-spacing: .04em; font-size: 12px; }
+  .hexline { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0 10px; }
+  .hex { font: 13.5px/1.4 var(--mono); word-break: break-all; }
+  .lead .hex { font-size: 15px; }
+  .tick { color: var(--ok); font: 700 18px/1 var(--sans); }
+  .pip {
+    display: inline-block;
+    margin-left: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-ink);
+    background: var(--accent);
+    border-radius: 999px;
+    padding: 1px 7px;
+    vertical-align: 1px;
+  }
+  button {
+    font: inherit;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  button.accent {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: transparent;
+    font-weight: 700;
+  }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .also-head {
+    margin: 16px 0 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 650;
+  }
+  .also-row {
+    display: grid;
+    grid-template-columns: 92px 1fr auto;
+    gap: 8px;
+    align-items: center;
+    padding: 7px 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .also-row .alg { color: var(--faint); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+  .also-row .hex { color: var(--hex-dim); font-size: 12.5px; }
+  @media (max-width: 600px) {
+    .also-row { grid-template-columns: 1fr auto; row-gap: 4px; }
+    .also-row .hexline { grid-column: 1 / -1; grid-row: 2; }
+    .lead .hex { font-size: 14px; }
+    .meta { flex-wrap: wrap; }
+  }
+  .tools {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 18px;
+  }
+  .tools .spacer { flex: 1; }
+  #clear { margin-left: auto; }
+  footer { margin-top: 22px; color: var(--muted); font-size: 13px; }
+  footer code { font-family: var(--mono); }
+  .site-footer {
+    margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line-soft);
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    color: var(--faint); font-size: 12.5px;
+  }
+  .site-footer .version { font-family: var(--mono); }
+  .site-footer a {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--muted); text-decoration: none;
+    padding: 4px 8px; border-radius: 7px; transition: color .15s, background-color .15s;
+  }
+  .site-footer a:hover { color: var(--accent); background: var(--accent-soft); }
+  .site-footer a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .site-footer svg { width: 14px; height: 14px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Checksum</h1>
+      <p>Hash a file in this browser, then check it against a pasted digest. Nothing is uploaded.</p>
+    </div>
+    <div class="header-tools">
+      <div class="badge pending" id="selftest">Self-test running…</div>
+      <button type="button" id="theme-toggle" aria-label="Switch colour scheme">
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+    </div>
+  </header>
+  <div class="pickrow" id="drop">
+    <label class="filebtn">Choose files<input id="picker" type="file" multiple=""></label>
+    <span class="or">or <strong>drop files here</strong><span class="hide-touch">, paste with <kbd>Ctrl</kbd>+<kbd>V</kbd></span></span>
+    <span class="queue" id="queue" role="status" aria-live="polite">No files yet</span>
+  </div>
+  <label class="expect-label" for="expect">Expected hash</label>
+  <textarea id="expect" rows="1" spellcheck="false" autocomplete="off" placeholder="paste the hash you were given, or the whole .sha256 / checksum file" aria-describedby="expect-hint"></textarea>
+  <p class="expect-hint" id="expect-hint" aria-live="polite"></p>
+  <label class="case"><input id="upper" type="checkbox"> Show uppercase — Copy uses this form</label>
+  <div id="list"></div>
+  <div class="tools">
+    <button id="copyAll" disabled="">Copy report</button>
+    <button id="save" disabled="">Download checksums.txt</button>
+    <button id="clear" disabled="">Clear all files</button>
+  </div>
+  <footer>
+    <div class="shortcuts" aria-label="Keyboard shortcuts">
+      <span><kbd>Enter</kbd> choose files</span>
+      <span><kbd>Ctrl</kbd>+<kbd>V</kbd> paste files or a hash</span>
+      <span><kbd>Esc</kbd> in the hash box clears it</span>
+    </div>
+    <p style="margin:12px 0 0">SHA-256 is the one to send. BLAKE2b-512 is the usual BLAKE file checksum, the same digest as <code>b2sum</code> (RFC 7693). BLAKE3 is the 256-bit digest from <code>b3sum</code>. SHA-512 and MD5 are only for older checksum files. MD5 does not prove a file was not swapped.</p>
+  </footer>
+  <div class="site-footer">
+    <span class="version" title="Checksum version">v1.0.0</span>
+    <span aria-hidden="true">·</span>
+    <a href="https://allesvoorbitcoin.be/donate" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-9.2-9.4C1.6 7.6 4 4.5 7.3 4.5c2 0 3.6 1.1 4.7 2.7 1.1-1.6 2.7-2.7 4.7-2.7 3.3 0 5.7 3.1 4.5 6.6-1.7 4.8-9.2 9.4-9.2 9.4z"/></svg>
+      Donate<span class="sr-only"> (opens in a new tab)</span>
+    </a>
+  </div>
+</main>
+<script>
+const MASK32 = 0xffffffff;
+
+function rotl32(x, n) {
+  return ((x << n) | (x >>> (32 - n))) >>> 0;
+}
+function rotr32(x, n) {
+  return ((x >>> n) | (x << (32 - n))) >>> 0;
+}
+
+function Md5() {
+  this.h = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];
+  this.buf = new Uint8Array(64);
+  this.bufLen = 0;
+  this.total = 0;
+}
+Md5.prototype.update = function (data) {
+  if (!(data instanceof Uint8Array)) data = new Uint8Array(data);
+  let off = 0;
+  this.total += data.length;
+  if (this.bufLen) {
+    const need = 64 - this.bufLen;
+    const take = Math.min(need, data.length);
+    this.buf.set(data.subarray(0, take), this.bufLen);
+    this.bufLen += take;
+    off = take;
+    if (this.bufLen === 64) {
+      this._block(this.buf);
+      this.bufLen = 0;
+    }
+  }
+  while (off + 64 <= data.length) {
+    this._block(data.subarray(off, off + 64));
+    off += 64;
+  }
+  if (off < data.length) {
+    this.buf.set(data.subarray(off), 0);
+    this.bufLen = data.length - off;
+  }
+};
+Md5.prototype.digest = function () {
+  const bits = this.total * 8;
+  const pad = new Uint8Array(this.bufLen < 56 ? 64 - this.bufLen : 128 - this.bufLen);
+  pad[0] = 0x80;
+  const view = new DataView(pad.buffer);
+  // little-endian 64-bit length; files under 2^53 bytes are exact in JS number
+  view.setUint32(pad.length - 8, bits >>> 0, true);
+  view.setUint32(pad.length - 4, Math.floor(bits / 0x100000000) >>> 0, true);
+  this.update(pad);
+  const out = new Uint8Array(16);
+  const dv = new DataView(out.buffer);
+  for (let i = 0; i < 4; i++) dv.setUint32(i * 4, this.h[i], true);
+  return out;
+};
+
+function Sha256() {
+  this.h = new Uint32Array([
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+  ]);
+  this.buf = new Uint8Array(64);
+  this.bufLen = 0;
+  this.total = 0;
+  this.K = null;
+}
+Sha256.prototype._k = function () {
+  if (this.K) return this.K;
+  const K = new Uint32Array([
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ]);
+  this.K = K;
+  return K;
+};
+Sha256.prototype.update = function (data) {
+  if (!(data instanceof Uint8Array)) data = new Uint8Array(data);
+  let off = 0;
+  this.total += data.length;
+  if (this.bufLen) {
+    const take = Math.min(64 - this.bufLen, data.length);
+    this.buf.set(data.subarray(0, take), this.bufLen);
+    this.bufLen += take;
+    off = take;
+    if (this.bufLen === 64) { this._block(this.buf, 0); this.bufLen = 0; }
+  }
+  while (off + 64 <= data.length) {
+    this._block(data, off);
+    off += 64;
+  }
+  if (off < data.length) {
+    this.buf.set(data.subarray(off), 0);
+    this.bufLen = data.length - off;
+  }
+};
+const SHA256_W = new Uint32Array(64);
+Sha256.prototype._block = function (p, o) {
+  const K = this._k(), w = SHA256_W, H = this.h;
+  for (let i = 0; i < 16; i++, o += 4) w[i] = (p[o] << 24) | (p[o + 1] << 16) | (p[o + 2] << 8) | p[o + 3];
+  for (let i = 16; i < 64; i++) {
+    const x = w[i - 15], y = w[i - 2];
+    const s0 = ((x >>> 7) | (x << 25)) ^ ((x >>> 18) | (x << 14)) ^ (x >>> 3);
+    const s1 = ((y >>> 17) | (y << 15)) ^ ((y >>> 19) | (y << 13)) ^ (y >>> 10);
+    w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+  }
+  let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+  for (let i = 0; i < 64; i++) {
+    const S1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+    const t1 = (h + S1 + ((e & f) ^ (~e & g)) + K[i] + w[i]) | 0;
+    const S0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+    const t2 = (S0 + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+    h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+  }
+  H[0] += a; H[1] += b; H[2] += c; H[3] += d; H[4] += e; H[5] += f; H[6] += g; H[7] += h;
+};
+Sha256.prototype.digest = function () {
+  const bits = this.total * 8;
+  const padLen = this.bufLen < 56 ? 64 - this.bufLen : 128 - this.bufLen;
+  const pad = new Uint8Array(padLen);
+  pad[0] = 0x80;
+  const view = new DataView(pad.buffer);
+  view.setUint32(pad.length - 4, bits >>> 0, false);
+  view.setUint32(pad.length - 8, Math.floor(bits / 0x100000000) >>> 0, false);
+  this.update(pad);
+  const out = new Uint8Array(32);
+  const dv = new DataView(out.buffer);
+  for (let i = 0; i < 8; i++) dv.setUint32(i * 4, this.h[i], false);
+  return out;
+};
+
+const MASK64 = (1n << 64n) - 1n;
+function rotr64(x, n) {
+  n = BigInt(n);
+  return ((x >> n) | (x << (64n - n))) & MASK64;
+}
+function shr64(x, n) { return x >> BigInt(n); }
+
+// ---- MD5: constants hoisted out of the per-block loop ----
+const MD5_S = new Uint8Array([
+  7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+  5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+  4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+  6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+]);
+const MD5_K = new Uint32Array(64);
+for (let i = 0; i < 64; i++) MD5_K[i] = Math.floor(Math.abs(Math.sin(i + 1)) * 0x100000000) >>> 0;
+const MD5_W = new Uint32Array(16);
+Md5.prototype._block = function (chunk) {
+  const w = MD5_W;
+  for (let i = 0; i < 16; i++) {
+    w[i] = chunk[i * 4] | (chunk[i * 4 + 1] << 8) | (chunk[i * 4 + 2] << 16) | (chunk[i * 4 + 3] << 24);
+  }
+  let a = this.h[0], b = this.h[1], c = this.h[2], d = this.h[3];
+  for (let i = 0; i < 64; i++) {
+    let f, g;
+    if (i < 16) { f = (b & c) | (~b & d); g = i; }
+    else if (i < 32) { f = (b & d) | (c & ~d); g = (5 * i + 1) & 15; }
+    else if (i < 48) { f = b ^ c ^ d; g = (3 * i + 5) & 15; }
+    else { f = c ^ (b | ~d); g = (7 * i) & 15; }
+    const tmp = d;
+    d = c;
+    c = b;
+    const sum = (a + f + MD5_K[i] + w[g]) >>> 0;
+    const s = MD5_S[i];
+    b = (b + ((sum << s) | (sum >>> (32 - s)))) >>> 0;
+    a = tmp;
+  }
+  this.h[0] = (this.h[0] + a) >>> 0;
+  this.h[1] = (this.h[1] + b) >>> 0;
+  this.h[2] = (this.h[2] + c) >>> 0;
+  this.h[3] = (this.h[3] + d) >>> 0;
+};
+
+// ---- SHA-512 on 32-bit halves (no BigInt in the hot loop) ----
+const SHA512_KH = new Int32Array(80), SHA512_KL = new Int32Array(80);
+const SHA512_K_HEX = [
+  "428a2f98d728ae22", "7137449123ef65cd", "b5c0fbcfec4d3b2f", "e9b5dba58189dbbc", "3956c25bf348b538", "59f111f1b605d019", "923f82a4af194f9b", "ab1c5ed5da6d8118",
+  "d807aa98a3030242", "12835b0145706fbe", "243185be4ee4b28c", "550c7dc3d5ffb4e2", "72be5d74f27b896f", "80deb1fe3b1696b1", "9bdc06a725c71235", "c19bf174cf692694",
+  "e49b69c19ef14ad2", "efbe4786384f25e3", "0fc19dc68b8cd5b5", "240ca1cc77ac9c65", "2de92c6f592b0275", "4a7484aa6ea6e483", "5cb0a9dcbd41fbd4", "76f988da831153b5",
+  "983e5152ee66dfab", "a831c66d2db43210", "b00327c898fb213f", "bf597fc7beef0ee4", "c6e00bf33da88fc2", "d5a79147930aa725", "06ca6351e003826f", "142929670a0e6e70",
+  "27b70a8546d22ffc", "2e1b21385c26c926", "4d2c6dfc5ac42aed", "53380d139d95b3df", "650a73548baf63de", "766a0abb3c77b2a8", "81c2c92e47edaee6", "92722c851482353b",
+  "a2bfe8a14cf10364", "a81a664bbc423001", "c24b8b70d0f89791", "c76c51a30654be30", "d192e819d6ef5218", "d69906245565a910", "f40e35855771202a", "106aa07032bbd1b8",
+  "19a4c116b8d2d0c8", "1e376c085141ab53", "2748774cdf8eeb99", "34b0bcb5e19b48a8", "391c0cb3c5c95a63", "4ed8aa4ae3418acb", "5b9cca4f7763e373", "682e6ff3d6b2b8a3",
+  "748f82ee5defb2fc", "78a5636f43172f60", "84c87814a1f0ab72", "8cc702081a6439ec", "90befffa23631e28", "a4506cebde82bde9", "bef9a3f7b2c67915", "c67178f2e372532b",
+  "ca273eceea26619c", "d186b8c721c0c207", "eada7dd6cde0eb1e", "f57d4f7fee6ed178", "06f067aa72176fba", "0a637dc5a2c898a6", "113f9804bef90dae", "1b710b35131c471b",
+  "28db77f523047d84", "32caab7b40c72493", "3c9ebe0a15c9bebc", "431d67c49c100d4c", "4cc5d4becb3e42b6", "597f299cfc657e2a", "5fcb6fab3ad6faec", "6c44198c4a475817"
+];
+for (let i = 0; i < 80; i++) {
+  SHA512_KH[i] = parseInt(SHA512_K_HEX[i].slice(0, 8), 16) | 0;
+  SHA512_KL[i] = parseInt(SHA512_K_HEX[i].slice(8), 16) | 0;
+}
+const SHA512_WH = new Int32Array(80), SHA512_WL = new Int32Array(80);
+const TWO32 = 4294967296;
+
+function Sha512() {
+  // state as hi/lo pairs: [h0h, h0l, h1h, h1l, ...]
+  this.s = new Int32Array([
+    0x6a09e667 | 0, 0xf3bcc908 | 0, 0xbb67ae85 | 0, 0x84caa73b | 0, 0x3c6ef372 | 0, 0xfe94f82b | 0, 0xa54ff53a | 0, 0x5f1d36f1 | 0,
+    0x510e527f | 0, 0xade682d1 | 0, 0x9b05688c | 0, 0x2b3e6c1f | 0, 0x1f83d9ab | 0, 0xfb41bd6b | 0, 0x5be0cd19 | 0, 0x137e2179 | 0
+  ]);
+  this.buf = new Uint8Array(128);
+  this.bufLen = 0;
+  this.total = 0;
+}
+Sha512.prototype.update = function (data) {
+  if (!(data instanceof Uint8Array)) data = new Uint8Array(data);
+  let off = 0;
+  this.total += data.length;
+  if (this.bufLen) {
+    const take = Math.min(128 - this.bufLen, data.length);
+    this.buf.set(data.subarray(0, take), this.bufLen);
+    this.bufLen += take;
+    off = take;
+    if (this.bufLen === 128) { this._block(this.buf, 0); this.bufLen = 0; }
+  }
+  while (off + 128 <= data.length) {
+    this._block(data, off);
+    off += 128;
+  }
+  if (off < data.length) {
+    this.buf.set(data.subarray(off), 0);
+    this.bufLen = data.length - off;
+  }
+};
+Sha512.prototype._block = function (p, o) {
+  const Wh = SHA512_WH, Wl = SHA512_WL, Kh = SHA512_KH, Kl = SHA512_KL, s = this.s;
+  for (let i = 0; i < 16; i++, o += 8) {
+    Wh[i] = (p[o] << 24) | (p[o + 1] << 16) | (p[o + 2] << 8) | p[o + 3];
+    Wl[i] = (p[o + 4] << 24) | (p[o + 5] << 16) | (p[o + 6] << 8) | p[o + 7];
+  }
+  for (let i = 16; i < 80; i++) {
+    let xh = Wh[i - 15], xl = Wl[i - 15];
+    // σ0 = rotr1 ^ rotr8 ^ shr7
+    const s0h = ((xh >>> 1) | (xl << 31)) ^ ((xh >>> 8) | (xl << 24)) ^ (xh >>> 7);
+    const s0l = ((xl >>> 1) | (xh << 31)) ^ ((xl >>> 8) | (xh << 24)) ^ ((xl >>> 7) | (xh << 25));
+    xh = Wh[i - 2]; xl = Wl[i - 2];
+    // σ1 = rotr19 ^ rotr61 ^ shr6
+    const s1h = ((xh >>> 19) | (xl << 13)) ^ ((xl >>> 29) | (xh << 3)) ^ (xh >>> 6);
+    const s1l = ((xl >>> 19) | (xh << 13)) ^ ((xh >>> 29) | (xl << 3)) ^ ((xl >>> 6) | (xh << 26));
+    const lo = (s0l >>> 0) + (s1l >>> 0) + (Wl[i - 7] >>> 0) + (Wl[i - 16] >>> 0);
+    Wh[i] = (s0h + s1h + Wh[i - 7] + Wh[i - 16] + ((lo / TWO32) | 0)) | 0;
+    Wl[i] = lo | 0;
+  }
+  let ah = s[0], al = s[1], bh = s[2], bl = s[3], ch = s[4], cl = s[5], dh = s[6], dl = s[7];
+  let eh = s[8], el = s[9], fh = s[10], fl = s[11], gh = s[12], gl = s[13], hh = s[14], hl = s[15];
+  for (let i = 0; i < 80; i++) {
+    // Σ1(e) = rotr14 ^ rotr18 ^ rotr41
+    const S1h = ((eh >>> 14) | (el << 18)) ^ ((eh >>> 18) | (el << 14)) ^ ((el >>> 9) | (eh << 23));
+    const S1l = ((el >>> 14) | (eh << 18)) ^ ((el >>> 18) | (eh << 14)) ^ ((eh >>> 9) | (el << 23));
+    const chh = (eh & fh) ^ (~eh & gh), chl = (el & fl) ^ (~el & gl);
+    const t1l = (hl >>> 0) + (S1l >>> 0) + (chl >>> 0) + (Kl[i] >>> 0) + (Wl[i] >>> 0);
+    const t1h = (hh + S1h + chh + Kh[i] + Wh[i] + ((t1l / TWO32) | 0)) | 0;
+    // Σ0(a) = rotr28 ^ rotr34 ^ rotr39
+    const S0h = ((ah >>> 28) | (al << 4)) ^ ((al >>> 2) | (ah << 30)) ^ ((al >>> 7) | (ah << 25));
+    const S0l = ((al >>> 28) | (ah << 4)) ^ ((ah >>> 2) | (al << 30)) ^ ((ah >>> 7) | (al << 25));
+    const mjh = (ah & bh) ^ (ah & ch) ^ (bh & ch), mjl = (al & bl) ^ (al & cl) ^ (bl & cl);
+    const t2l = (S0l >>> 0) + (mjl >>> 0);
+    const t2h = (S0h + mjh + ((t2l / TWO32) | 0)) | 0;
+    hh = gh; hl = gl; gh = fh; gl = fl; fh = eh; fl = el;
+    let x = (dl >>> 0) + (t1l >>> 0);
+    eh = (dh + t1h + ((x / TWO32) | 0)) | 0; el = x | 0;
+    dh = ch; dl = cl; ch = bh; cl = bl; bh = ah; bl = al;
+    x = (t1l >>> 0) + (t2l >>> 0);
+    ah = (t1h + t2h + ((x / TWO32) | 0)) | 0; al = x | 0;
+  }
+  const add = (k, vh, vl) => {
+    const x = (s[k + 1] >>> 0) + (vl >>> 0);
+    s[k] = (s[k] + vh + ((x / TWO32) | 0)) | 0;
+    s[k + 1] = x | 0;
+  };
+  add(0, ah, al); add(2, bh, bl); add(4, ch, cl); add(6, dh, dl);
+  add(8, eh, el); add(10, fh, fl); add(12, gh, gl); add(14, hh, hl);
+};
+Sha512.prototype.digest = function () {
+  const bits = this.total * 8;
+  const padLen = this.bufLen < 112 ? 128 - this.bufLen : 256 - this.bufLen;
+  const pad = new Uint8Array(padLen);
+  pad[0] = 0x80;
+  // 128-bit big-endian length; the top 64 bits are always 0 for real files
+  const view = new DataView(pad.buffer);
+  view.setUint32(pad.length - 8, Math.floor(bits / TWO32) >>> 0, false);
+  view.setUint32(pad.length - 4, bits >>> 0, false);
+  this.update(pad);
+  const out = new Uint8Array(64);
+  const dv = new DataView(out.buffer);
+  for (let i = 0; i < 16; i++) dv.setInt32(i * 4, this.s[i], false);
+  return out;
+};
+
+// ---- BLAKE2b on 32-bit halves (same approach as blakejs, RFC 7693) ----
+const B2_IV32 = new Uint32Array([
+  0xF3BCC908, 0x6A09E667, 0x84CAA73B, 0xBB67AE85, 0xFE94F82B, 0x3C6EF372, 0x5F1D36F1, 0xA54FF53A,
+  0xADE682D1, 0x510E527F, 0x2B3E6C1F, 0x9B05688C, 0xFB41BD6B, 0x1F83D9AB, 0x137E2179, 0x5BE0CD19
+]);
+const B2_SIGMA2 = new Uint8Array([
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3,
+  11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4,
+  7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8,
+  9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13,
+  2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9,
+  12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11,
+  13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10,
+  6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5,
+  10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0,
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3
+].map(x => x * 2));
+const B2_V = new Uint32Array(32), B2_M = new Uint32Array(32);
+
+function b2Add64AA(v, a, b) {
+  const o0 = v[a] + v[b];
+  let o1 = v[a + 1] + v[b + 1];
+  if (o0 >= TWO32) o1++;
+  v[a] = o0; v[a + 1] = o1;
+}
+function b2Add64AC(v, a, b0, b1) {
+  const o0 = v[a] + b0;
+  let o1 = v[a + 1] + b1;
+  if (o0 >= TWO32) o1++;
+  v[a] = o0; v[a + 1] = o1;
+}
+function b2G(a, b, c, d, ix, iy) {
+  const v = B2_V, m = B2_M;
+  const x0 = m[ix], x1 = m[ix + 1], y0 = m[iy], y1 = m[iy + 1];
+  b2Add64AA(v, a, b);
+  b2Add64AC(v, a, x0, x1);
+  let xor0 = v[d] ^ v[a], xor1 = v[d + 1] ^ v[a + 1];
+  v[d] = xor1; v[d + 1] = xor0;                                         // rotr 32
+  b2Add64AA(v, c, d);
+  xor0 = v[b] ^ v[c]; xor1 = v[b + 1] ^ v[c + 1];
+  v[b] = (xor0 >>> 24) ^ (xor1 << 8); v[b + 1] = (xor1 >>> 24) ^ (xor0 << 8);   // rotr 24
+  b2Add64AA(v, a, b);
+  b2Add64AC(v, a, y0, y1);
+  xor0 = v[d] ^ v[a]; xor1 = v[d + 1] ^ v[a + 1];
+  v[d] = (xor0 >>> 16) ^ (xor1 << 16); v[d + 1] = (xor1 >>> 16) ^ (xor0 << 16); // rotr 16
+  b2Add64AA(v, c, d);
+  xor0 = v[b] ^ v[c]; xor1 = v[b + 1] ^ v[c + 1];
+  v[b] = (xor1 >>> 31) ^ (xor0 << 1); v[b + 1] = (xor0 >>> 31) ^ (xor1 << 1);   // rotr 63
+}
+
+function Blake2b(outLen) {
+  this.outLen = outLen || 64;
+  this.h = new Uint32Array(B2_IV32);
+  this.h[0] ^= 0x01010000 ^ this.outLen;
+  this.buf = new Uint8Array(128);
+  this.bufLen = 0;
+  this.t = 0;
+}
+Blake2b.prototype._compress = function (block, o, last) {
+  const v = B2_V, m = B2_M, h = this.h;
+  for (let i = 0; i < 16; i++) { v[i] = h[i]; v[i + 16] = B2_IV32[i]; }
+  v[24] ^= this.t;
+  v[25] ^= this.t / TWO32;
+  if (last) { v[28] = ~v[28]; v[29] = ~v[29]; }
+  for (let i = 0; i < 32; i++) {
+    const j = o + 4 * i;
+    m[i] = block[j] ^ (block[j + 1] << 8) ^ (block[j + 2] << 16) ^ (block[j + 3] << 24);
+  }
+  for (let i = 0; i < 12; i++) {
+    const r = i * 16;
+    b2G(0, 8, 16, 24, B2_SIGMA2[r + 0], B2_SIGMA2[r + 1]);
+    b2G(2, 10, 18, 26, B2_SIGMA2[r + 2], B2_SIGMA2[r + 3]);
+    b2G(4, 12, 20, 28, B2_SIGMA2[r + 4], B2_SIGMA2[r + 5]);
+    b2G(6, 14, 22, 30, B2_SIGMA2[r + 6], B2_SIGMA2[r + 7]);
+    b2G(0, 10, 20, 30, B2_SIGMA2[r + 8], B2_SIGMA2[r + 9]);
+    b2G(2, 12, 22, 24, B2_SIGMA2[r + 10], B2_SIGMA2[r + 11]);
+    b2G(4, 14, 16, 26, B2_SIGMA2[r + 12], B2_SIGMA2[r + 13]);
+    b2G(6, 8, 18, 28, B2_SIGMA2[r + 14], B2_SIGMA2[r + 15]);
+  }
+  for (let i = 0; i < 16; i++) h[i] = h[i] ^ v[i] ^ v[i + 16];
+};
+Blake2b.prototype.update = function (data) {
+  if (!(data instanceof Uint8Array)) data = new Uint8Array(data);
+  let off = 0;
+  const n = data.length;
+  // fill a partial buffer first
+  if (this.bufLen && this.bufLen < 128) {
+    const take = Math.min(128 - this.bufLen, n);
+    this.buf.set(data.subarray(0, take), this.bufLen);
+    this.bufLen += take;
+    off = take;
+  }
+  // a full buffer is only compressed once we know more data follows (last block needs the final flag)
+  if (this.bufLen === 128 && off < n) {
+    this.t += 128;
+    this._compress(this.buf, 0, false);
+    this.bufLen = 0;
+  }
+  // whole blocks straight from the input, always keeping at least 1 byte back
+  while (n - off > 128) {
+    this.t += 128;
+    this._compress(data, off, false);
+    off += 128;
+  }
+  if (off < n) {
+    this.buf.set(data.subarray(off), this.bufLen);
+    this.bufLen += n - off;
+  }
+};
+Blake2b.prototype.digest = function () {
+  this.t += this.bufLen;
+  this.buf.fill(0, this.bufLen);
+  this._compress(this.buf, 0, true);
+  const out = new Uint8Array(this.outLen);
+  for (let i = 0; i < this.outLen; i++) out[i] = this.h[i >> 2] >> (8 * (i & 3));
+  return out;
+};
+
+function toHex(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, "0");
+  return s;
+}
+const IV = new Uint32Array([
+  0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A,
+  0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19
+]);
+const PERM = [2, 6, 3, 10, 7, 0, 4, 13, 1, 11, 12, 5, 9, 14, 15, 8];
+const CHUNK_START = 1, CHUNK_END = 2, PARENT = 4, ROOT = 8;
+
+function rotr(x, n) { return ((x >>> n) | (x << (32 - n))) >>> 0; }
+function g(s, a, b, c, d, mx, my) {
+  s[a] = (s[a] + s[b] + mx) >>> 0;
+  s[d] = rotr(s[d] ^ s[a], 16);
+  s[c] = (s[c] + s[d]) >>> 0;
+  s[b] = rotr(s[b] ^ s[c], 12);
+  s[a] = (s[a] + s[b] + my) >>> 0;
+  s[d] = rotr(s[d] ^ s[a], 8);
+  s[c] = (s[c] + s[d]) >>> 0;
+  s[b] = rotr(s[b] ^ s[c], 7);
+}
+function wordsToBytes(words, n) {
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = (words[i >> 2] >>> (8 * (i & 3))) & 255;
+  return out;
+}
+function compress(cv, block, blockLen, counter, flags) {
+  const m = new Uint32Array(16);
+  for (let i = 0; i < 16; i++) {
+    const o = i * 4;
+    m[i] = (block[o] | (block[o + 1] << 8) | (block[o + 2] << 16) | (block[o + 3] << 24)) >>> 0;
+  }
+  const s = new Uint32Array(16);
+  s.set(cv);
+  s[8] = IV[0]; s[9] = IV[1]; s[10] = IV[2]; s[11] = IV[3];
+  s[12] = counter >>> 0;
+  s[13] = Math.floor(counter / 4294967296) >>> 0;
+  s[14] = blockLen;
+  s[15] = flags;
+  for (let round = 0; round < 7; round++) {
+    g(s, 0, 4, 8, 12, m[0], m[1]);
+    g(s, 1, 5, 9, 13, m[2], m[3]);
+    g(s, 2, 6, 10, 14, m[4], m[5]);
+    g(s, 3, 7, 11, 15, m[6], m[7]);
+    g(s, 0, 5, 10, 15, m[8], m[9]);
+    g(s, 1, 6, 11, 12, m[10], m[11]);
+    g(s, 2, 7, 8, 13, m[12], m[13]);
+    g(s, 3, 4, 9, 14, m[14], m[15]);
+    const p = new Uint32Array(16);
+    for (let i = 0; i < 16; i++) p[i] = m[PERM[i]];
+    m.set(p);
+  }
+  const out = new Uint32Array(16);
+  for (let i = 0; i < 8; i++) {
+    out[i] = (s[i] ^ s[i + 8]) >>> 0;
+    out[i + 8] = (s[i + 8] ^ cv[i]) >>> 0;
+  }
+  return out;
+}
+function cvFromBytes(bytes) {
+  const cv = new Uint32Array(8);
+  for (let i = 0; i < 8; i++) {
+    const o = i * 4;
+    cv[i] = (bytes[o] | (bytes[o + 1] << 8) | (bytes[o + 2] << 16) | (bytes[o + 3] << 24)) >>> 0;
+  }
+  return cv;
+}
+function parentCv(left, right) {
+  const block = new Uint8Array(64);
+  block.set(left, 0);
+  block.set(right, 32);
+  return wordsToBytes(compress(IV, block, 64, 0, PARENT), 32);
+}
+
+function Blake3() {
+  this.cv = IV.slice();
+  this.buf = new Uint8Array(64);
+  this.bufLen = 0;
+  this.blocks = 0;
+  this.chunkCounter = 0;
+  this.stack = [];
+}
+Blake3.prototype._chunkFlags = function (end) {
+  return (this.blocks === 0 ? CHUNK_START : 0) | (end ? CHUNK_END : 0);
+};
+Blake3.prototype._compressBlock = function (block, len, end) {
+  const out = compress(this.cv, block, len, this.chunkCounter, this._chunkFlags(end));
+  this.cv = out.subarray(0, 8);
+  this.blocks++;
+};
+Blake3.prototype._pushCv = function (cvBytes) {
+  let cv = cvBytes;
+  let n = this.chunkCounter + 1;
+  while ((n & 1) === 0) {
+    n >>= 1;
+    cv = parentCv(this.stack.pop(), cv);
+  }
+  this.stack.push(cv);
+  this.chunkCounter++;
+  this.cv = IV.slice();
+  this.blocks = 0;
+  this.bufLen = 0;
+};
+Blake3.prototype.update = function (data) {
+  if (!(data instanceof Uint8Array)) data = new Uint8Array(data);
+  let off = 0;
+  while (off < data.length) {
+    if (this.bufLen === 64) {
+      const endOfChunk = this.blocks === 15;
+      const block = this.buf.slice();
+      this.bufLen = 0;
+      if (endOfChunk) {
+        this._compressBlock(block, 64, true);
+        this._pushCv(wordsToBytes(this.cv, 32));
+      } else {
+        this._compressBlock(block, 64, false);
+      }
+    }
+    const take = Math.min(64 - this.bufLen, data.length - off);
+    this.buf.set(data.subarray(off, off + take), this.bufLen);
+    this.bufLen += take;
+    off += take;
+  }
+};
+Blake3.prototype.digest = function () {
+  let cvBytes;
+  if (this.blocks === 0 && this.bufLen === 0 && this.chunkCounter > 0) {
+    cvBytes = this.stack.pop();
+  } else {
+    const block = new Uint8Array(64);
+    block.set(this.buf.subarray(0, this.bufLen));
+    const out = compress(this.cv, block, this.bufLen, this.chunkCounter, this._chunkFlags(true));
+    cvBytes = wordsToBytes(out, 32);
+    if (this.stack.length === 0) return wordsToBytes(compress(this.cv, block, this.bufLen, this.chunkCounter, this._chunkFlags(true) | ROOT), 32);
+  }
+  while (this.stack.length) {
+    const left = this.stack.pop();
+    const right = cvBytes;
+    const block = new Uint8Array(64);
+    block.set(left, 0);
+    block.set(right, 32);
+    const flags = PARENT | (this.stack.length === 0 ? ROOT : 0);
+    const out = compress(IV, block, 64, 0, flags);
+    cvBytes = wordsToBytes(out, 32);
+    if (flags & ROOT) return cvBytes;
+  }
+  return cvBytes;
+};
+function toHex(bytes) {
+  return Array.from(bytes, b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function hashAll(bytes) {
+  const md5 = new Md5(); md5.update(bytes);
+  const s256 = new Sha256(); s256.update(bytes);
+  const s512 = new Sha512(); s512.update(bytes);
+  const b2 = new Blake2b(64); b2.update(bytes);
+  const b3 = new Blake3(); b3.update(bytes);
+  return { md5: toHex(md5.digest()), sha256: toHex(s256.digest()), sha512: toHex(s512.digest()), blake2b: toHex(b2.digest()), blake3: toHex(b3.digest()) };
+}
+
+const VECTORS = {
+  "": {
+    md5: "d41d8cd98f00b204e9800998ecf8427e",
+    sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    sha512: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+    blake2b: "786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce",
+    blake3: "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+  },
+  abc: {
+    md5: "900150983cd24fb0d6963f7d28e17f72",
+    sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    sha512: "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
+    blake2b: "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923",
+    blake3: "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85"
+  }
+};
+VECTORS.a1000 = {
+  md5: "cabe45dcc9ae5b66ba86600cca6b8ba8",
+  sha256: "41edece42d63e8d9bf515a9ba6932e1c20cbc9f5a5d134645adb5db1b9737ea3",
+  sha512: "67ba5535a46e3f86dbfbed8cbbaf0125c76ed549ff8b0b9e03e0c88cf90fa634fa7b12b47d77b694de488ace8d9a65967dc96df599727d3292a8d9d447709c97",
+  blake2b: "d6a69459fe93fc6b9537ed4336e5099e0dcca3e97290a412500ed7a0daffb03d80cf3650a20e0591f748e10c3c534945ee83d5f2c9722f1a68d98b8c01af23fd",
+  blake3: "9957a9014733dd6b6e2f6abcbe7b259a6da1aa0b0e184cd7bf1810e5c425f405"
+};
+const ALSO = [
+  ["BLAKE2b", "blake2b"],
+  ["BLAKE3", "blake3"],
+  ["SHA-512", "sha512"],
+  ["MD5", "md5"]
+];
+const jobs = [];
+const drop = document.getElementById("drop");
+const list = document.getElementById("list");
+const expect = document.getElementById("expect");
+const upper = document.getElementById("upper");
+
+function fmtSize(n) {
+  if (n < 1024) return n + " B";
+  const u = ["KB", "MB", "GB", "TB"];
+  let v = n / 1024, i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return v.toFixed(v < 10 ? 1 : 0) + " " + u[i];
+}
+function show(hex) { return upper.checked ? hex.toUpperCase() : hex; }
+// Understands what people actually paste:
+//   abc123…                              bare hash (any case, spaces or colons between bytes)
+//   abc123…  file.iso / abc123… *file.iso   sha256sum / b2sum / md5sum output, one or many lines
+//   SHA256 (file.iso) = abc123…          macOS / BSD shasum --tag
+//   sha256:abc123…, PowerShell Get-FileHash tables, certutil output
+const HEX_LENGTHS = { 32: "MD5", 64: "SHA-256 or BLAKE3", 128: "BLAKE2b or SHA-512" };
+const HEX_RUN = /(?<![0-9a-f])[0-9a-f]{32,128}(?![0-9a-f])/gi;
+const baseName = s => s.trim().replace(/^\*/, "").split(/[\\/]/).pop().toLowerCase();
+let parsed = { named: new Map(), loose: new Set(), longestHex: 0 };
+function parseExpected(text) {
+  const named = new Map(), loose = new Set();
+  let longestHex = 0;
+  const addNamed = (hex, name) => {
+    const k = baseName(name);
+    if (!named.has(k)) named.set(k, new Set());
+    named.get(k).add(hex.toLowerCase());
+  };
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    let m;
+    if ((m = line.match(/^[A-Za-z0-9-]+\s*\((.+)\)\s*=\s*([0-9a-fA-F]+)$/)) && HEX_LENGTHS[m[2].length]) { addNamed(m[2], m[1]); continue; }
+    if ((m = line.match(/^\\?([0-9a-fA-F]+)\s+[* ]?(\S.*)$/)) && HEX_LENGTHS[m[1].length] && !/^[0-9a-fA-F]+$/.test(m[2].replace(/[\s:]/g, ""))) { addNamed(m[1], m[2]); continue; }
+    const runs = (line.match(HEX_RUN) || []).filter(h => HEX_LENGTHS[h.length]);
+    if (runs.length) { runs.forEach(h => loose.add(h.toLowerCase())); continue; }
+    // hex split by spaces or colons (certutil, some websites)
+    const compact = line.replace(/[\s:]/g, "");
+    if (/^[0-9a-f]+$/i.test(compact)) {
+      if (HEX_LENGTHS[compact.length]) loose.add(compact.toLowerCase());
+      else longestHex = Math.max(longestHex, compact.length);
+    }
+  }
+  return { named, loose, longestHex };
+}
+function updateHint() {
+  const el = document.getElementById("expect-hint");
+  const { named, loose, longestHex } = parsed;
+  const text = expect.value.trim();
+  el.className = "expect-hint";
+  if (!text) { el.textContent = ""; return; }
+  if (named.size) {
+    const names = [...named.keys()];
+    el.textContent = "Found " + names.length + (names.length === 1 ? " checksum" : " checksums") + " for: " + names.slice(0, 4).join(", ") + (names.length > 4 ? " +" + (names.length - 4) + " more" : "") + (loose.size ? " (plus " + loose.size + " without a file name)" : "");
+    el.classList.add("ok");
+  } else if (loose.size === 1) {
+    const h = [...loose][0];
+    el.textContent = "Recognised a " + h.length + "-character hash (" + HEX_LENGTHS[h.length] + ")";
+    el.classList.add("ok");
+  } else if (loose.size > 1) {
+    el.textContent = "Recognised " + loose.size + " hashes; each file is checked against all of them";
+    el.classList.add("ok");
+  } else if (longestHex >= 8) {
+    el.textContent = "Incomplete hash: " + longestHex + " characters. MD5 has 32, SHA-256 and BLAKE3 64, SHA-512 and BLAKE2b 128.";
+    el.classList.add("warn");
+  } else {
+    el.textContent = "No hash found in what you pasted";
+    el.classList.add("warn");
+  }
+}
+// Hashes this file should be compared with. null = the pasted list names other files only.
+function wantedFor(job) {
+  const { named, loose } = parsed;
+  if (named.size) {
+    const own = named.get(job.file.name.toLowerCase());
+    if (own) return own;
+    return loose.size ? loose : null;
+  }
+  return loose.size ? loose : new Set();
+}
+function verdictFor(job) {
+  const hashes = job.hashes;
+  if (!hashes || !expect.value.trim()) return { text: "", kind: "" };
+  const want = wantedFor(job);
+  if (want === null) return { text: "Not in the pasted list", kind: "neutral" };
+  if (!want.size) return { text: "", kind: "" };
+  if (want.has(hashes.sha256)) return { text: "Matches SHA-256", kind: "ok" };
+  if (want.has(hashes.blake2b)) return { text: "Matches BLAKE2b", kind: "ok" };
+  if (want.has(hashes.blake3)) return { text: "Matches BLAKE3", kind: "ok" };
+  if (want.has(hashes.sha512)) return { text: "Matches SHA-512", kind: "ok" };
+  if (want.has(hashes.md5)) return { text: "Matches MD5 only", kind: "warn" };
+  // A single pasted hash that another file matches: this one simply isn't that file
+  if (!parsed.named.size && jobs.some(j => j !== job && j.hashes && ["sha256", "blake2b", "blake3", "sha512", "md5"].some(k => want.has(j.hashes[k])))) {
+    return { text: "Not this file", kind: "neutral" };
+  }
+  return { text: "No match", kind: "bad" };
+}
+function setQueue() {
+  const pending = jobs.filter(j => !j.hashes && !j.error);
+  const el = document.getElementById("queue");
+  if (!pending.length) el.textContent = jobs.length ? (jobs.length === 1 ? "1 file hashed" : jobs.length + " files hashed") : "No files yet";
+  else el.textContent = "Hashing " + (jobs.length - pending.length + 1) + " of " + jobs.length;
+}
+function paint() {
+  for (const job of jobs) {
+    if (!job.hashes) continue;
+    job.els.sha256.textContent = show(job.hashes.sha256);
+    const want = wantedFor(job) || new Set();
+    job.els.shaTick.hidden = !want.has(job.hashes.sha256);
+    for (const [, key] of ALSO) {
+      job.els[key].textContent = show(job.hashes[key]);
+      job.els[key + "tick"].hidden = !want.has(job.hashes[key]);
+    }
+    const v = verdictFor(job);
+    job.verdict.textContent = v.text;
+    job.verdict.className = "verdict " + v.kind;
+    job.card.classList.toggle("is-bad", v.kind === "bad");
+    job.card.classList.toggle("is-ok", v.kind === "ok");
+  }
+}
+function report() {
+  return jobs.filter(j => j.hashes).map(j => {
+    const lines = ["# " + j.file.name + " (" + j.file.size + " bytes)"];
+    lines.push("SHA-256  " + show(j.hashes.sha256));
+    for (const [label, key] of ALSO) lines.push(label.padEnd(8, " ") + " " + show(j.hashes[key]));
+    return lines.join("\n");
+  }).join("\n\n");
+}
+function setButtons() {
+  const ready = jobs.some(j => j.hashes);
+  document.getElementById("copyAll").disabled = !ready;
+  document.getElementById("save").disabled = !ready;
+  document.getElementById("clear").disabled = jobs.length === 0;
+  setQueue();
+}
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (e) {
+    // Fallback for browsers/contexts that block the async clipboard API
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+    ta.remove();
+    return ok;
+  }
+}
+function flash(btn, ok, original) {
+  btn.textContent = ok ? "Copied ✓" : "Copy failed — select the text";
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => { btn.textContent = original; }, ok ? 1200 : 2600);
+}
+function copyBtn(label, accent, getText) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = accent ? "accent" : "";
+  btn.disabled = true;
+  btn.textContent = label;
+  btn.addEventListener("click", async () => {
+    flash(btn, await copyText(getText()), label);
+  });
+  return btn;
+}
+function addCard(file) {
+  const card = document.createElement("article");
+  card.className = "card";
+  card.innerHTML = '<div class="meta"><div class="name"></div><div class="size"></div></div><div class="status"></div><p class="verdict"></p><div class="lead"></div><div class="also-head">Also calculated — not the one to send</div><div class="also"></div>';
+  card.querySelector(".name").textContent = file.name;
+  card.querySelector(".size").textContent = fmtSize(file.size);
+  const status = card.querySelector(".status");
+  status.textContent = "Waiting";
+  const verdict = card.querySelector(".verdict");
+  const lead = card.querySelector(".lead");
+  const alg = document.createElement("div");
+  alg.className = "alg";
+  alg.innerHTML = 'SHA-256 <span class="pip">recommended</span>';
+  const hexline = document.createElement("div");
+  hexline.className = "hexline";
+  const hex = document.createElement("span");
+  hex.className = "hex";
+  hex.textContent = "…";
+  const tick = document.createElement("span");
+  tick.className = "tick";
+  tick.textContent = "✓";
+  tick.hidden = true;
+  tick.setAttribute("aria-label", "matches");
+  hexline.append(hex, tick);
+  const btn = copyBtn("Copy SHA-256", true, () => show(jobs.find(j => j.els.sha256 === hex).hashes.sha256));
+  lead.append(alg, hexline, btn);
+  const also = card.querySelector(".also");
+  const els = { sha256: hex, shaTick: tick, shaBtn: btn };
+  for (const [label, key] of ALSO) {
+    const row = document.createElement("div");
+    row.className = "also-row";
+    const name = document.createElement("div");
+    name.className = "alg";
+    name.textContent = label;
+    const cell = document.createElement("div");
+    cell.className = "hexline";
+    const h = document.createElement("span");
+    h.className = "hex";
+    h.textContent = "…";
+    const t = document.createElement("span");
+    t.className = "tick";
+    t.textContent = "✓";
+    t.hidden = true;
+    cell.append(h, t);
+    const b = copyBtn("Copy " + label, false, () => show(jobs.find(j => j.els[key] === h).hashes[key]));
+    row.append(name, cell, b);
+    also.appendChild(row);
+    els[key] = h;
+    els[key + "tick"] = t;
+    els[key + "btn"] = b;
+  }
+  list.prepend(card);
+  return { file, card, els, hashes: null, status, verdict };
+}
+async function hashFile(file, onProgress) {
+  const md5 = new Md5();
+  const sha256 = new Sha256();
+  const sha512 = new Sha512();
+  const blake2b = new Blake2b(64);
+  const blake3 = new Blake3();
+  const reader = file.stream().getReader();
+  let read = 0, sinceYield = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    md5.update(value); sha256.update(value); sha512.update(value); blake2b.update(value); blake3.update(value);
+    read += value.length;
+    sinceYield += value.length;
+    if (sinceYield > 2097152) {
+      onProgress(file.size ? read / file.size : 1);
+      sinceYield = 0;
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+  onProgress(1);
+  return {
+    md5: toHex(md5.digest()),
+    sha256: toHex(sha256.digest()),
+    sha512: toHex(sha512.digest()),
+    blake2b: toHex(blake2b.digest()),
+    blake3: toHex(blake3.digest())
+  };
+}
+let running = false;
+async function pump() {
+  if (running) return;
+  running = true;
+  try {
+    while (true) {
+      const job = jobs.find(j => !j.hashes && !j.busy && !j.error);
+      if (!job) break;
+      job.busy = true;
+      setQueue();
+      try {
+        job.status.textContent = "Hashing…";
+        job.hashes = await hashFile(job.file, p => { job.status.textContent = "Hashing… " + Math.round(p * 100) + "%"; });
+        job.status.textContent = "Done";
+        job.els.shaBtn.disabled = false;
+        for (const [, key] of ALSO) job.els[key + "btn"].disabled = false;
+        paint();
+      } catch (err) {
+        job.error = true;
+        job.status.textContent = "Could not read file: " + err.message;
+      }
+      setButtons();
+    }
+  } finally {
+    running = false;
+    setQueue();
+  }
+}
+function enqueue(fileList) {
+  for (const file of fileList) jobs.push(addCard(file));
+  setButtons();
+  pump();
+}
+let dragDepth = 0;
+document.addEventListener("dragenter", e => { e.preventDefault(); if (++dragDepth === 1) drop.classList.add("over"); });
+document.addEventListener("dragover", e => { e.preventDefault(); });
+document.addEventListener("dragleave", e => { if (--dragDepth <= 0) { dragDepth = 0; drop.classList.remove("over"); } });
+drop.addEventListener("click", e => { if (!e.target.closest("label, input, button")) document.getElementById("picker").click(); });
+document.addEventListener("drop", e => {
+  e.preventDefault();
+  dragDepth = 0;
+  drop.classList.remove("over");
+  if (e.dataTransfer.files.length) enqueue(e.dataTransfer.files);
+});
+document.getElementById("picker").addEventListener("change", e => {
+  enqueue(e.target.files);
+  e.target.value = "";
+});
+function onExpectInput() {
+  expect.style.height = "auto";
+  expect.style.height = Math.min(expect.scrollHeight + 2, 320) + "px";
+  expect.style.overflow = expect.scrollHeight > 318 ? "auto" : "hidden";
+  parsed = parseExpected(expect.value);
+  updateHint();
+  paint();
+}
+expect.addEventListener("input", onExpectInput);
+upper.addEventListener("change", paint);
+document.getElementById("copyAll").addEventListener("click", async () => {
+  flash(document.getElementById("copyAll"), await copyText(report()), "Copy report");
+});
+document.getElementById("save").addEventListener("click", () => {
+  const blob = new Blob([report() + "\n"], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "checksums.txt";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+document.getElementById("clear").addEventListener("click", () => {
+  jobs.length = 0;
+  list.innerHTML = "";
+  setButtons();
+});
+function selfTest() {
+  const badge = document.getElementById("selftest");
+  const empty = hashAll(new Uint8Array());
+  const abc = hashAll(new TextEncoder().encode("abc"));
+  const a1000 = hashAll(new TextEncoder().encode("a".repeat(1000)));
+  const ok = JSON.stringify(empty) === JSON.stringify(VECTORS[""]) && JSON.stringify(abc) === JSON.stringify(VECTORS.abc)
+    && JSON.stringify(a1000) === JSON.stringify(VECTORS.a1000);
+  badge.classList.remove("pending");
+  badge.textContent = ok ? "Self-test passed" : "Self-test failed — do not trust these hashes";
+  badge.title = ok ? "All five algorithms reproduced known test vectors in this browser" : "";
+  badge.classList.toggle("fail", !ok);
+}
+// ---- colour scheme ----
+const themeMq = matchMedia("(prefers-color-scheme: light)");
+const effectiveTheme = () => document.documentElement.getAttribute("data-theme") || (themeMq.matches ? "light" : "dark");
+function syncTheme() {
+  const eff = effectiveTheme();
+  document.documentElement.setAttribute("data-effective-theme", eff);
+  const label = eff === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  const btn = document.getElementById("theme-toggle");
+  btn.title = label; btn.setAttribute("aria-label", label);
+}
+document.getElementById("theme-toggle").addEventListener("click", () => {
+  const next = effectiveTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("checksum-theme", next); } catch (e) {}
+  syncTheme();
+});
+themeMq.addEventListener ? themeMq.addEventListener("change", syncTheme) : themeMq.addListener(syncTheme);
+syncTheme();
+
+// ---- keyboard ----
+document.addEventListener("keydown", e => {
+  if (e.defaultPrevented || e.isComposing) return;
+  const inField = e.target.closest && e.target.closest("textarea, input[type=text]");
+  if (e.key === "Escape" && e.target === expect && expect.value) {
+    expect.value = ""; onExpectInput(); return;
+  }
+  if (e.key === "Enter" && !inField && !(e.target.closest && e.target.closest("button, a, input"))) {
+    e.preventDefault();
+    document.getElementById("picker").click();
+  }
+});
+// ---- paste: files are hashed, text goes into the hash box ----
+document.addEventListener("paste", e => {
+  if (e.target === expect) return;
+  const files = [...(e.clipboardData && e.clipboardData.files || [])];
+  if (files.length) { e.preventDefault(); enqueue(files); return; }
+  const text = e.clipboardData && e.clipboardData.getData("text");
+  if (text && text.trim()) {
+    e.preventDefault();
+    expect.value = text;
+    onExpectInput();
+    expect.focus();
+  }
+});
+
+selfTest();
+</script>
+
+
+</body></html>
